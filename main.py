@@ -14,7 +14,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Nexus Alpha is Alive!"
+    return "Nexus Alpha 2.0 is Alive!"
 
 def run_web_server():
     app.run(host='0.0.0.0', port=8080)
@@ -23,52 +23,42 @@ def get_signal():
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     
-    prompt = "Provide a Gold (XAUUSD) BUY/SELL signal in BENGALI with Entry, TP, SL and analysis."
+    # আমরা মডেল আপডেট করে llama3-70b-8192 দিচ্ছি যা অনেক শক্তিশালী
     data = {
-        "model": "llama3-8b-8192",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.5
+        "model": "llama3-70b-8192", 
+        "messages": [{"role": "user", "content": "Provide a high-quality Gold (XAUUSD) trading signal in BENGALI. Action, Entry, TP, SL and analysis."}],
+        "temperature": 0.6
     }
     
     try:
-        # আমরা Timeout বাড়িয়ে ৩০ সেকেন্ড করলাম যাতে AI ভাবার সময় পায়
         r = requests.post(url, headers=headers, json=data, timeout=30)
         res = r.json()
         if 'choices' in res:
             return res['choices'][0]['message']['content']
-        return "⚠️ AI Response Error: " + str(res.get('error', {}).get('message', 'Unknown'))
+        return f"⚠️ AI Error: {res.get('error', {}).get('message', 'Unknown Error')}"
     except Exception as e:
         return f"⚠️ Connection Error: {str(e)}"
 
 def auto_loop():
     # প্রথম স্টার্ট মেসেজ
-    bot.send_message(USER_CHAT_ID, "🛠️ **System Hard-Reset Done!**\nঅটোমেশন ইঞ্জিন এখন প্রতি ১০ মিনিট পর পর জোরপূর্বক সিগন্যাল জেনারেট করবে।")
+    bot.send_message(USER_CHAT_ID, "✅ **Model Updated to Llama3-70B!**\nএখন থেকে এআই নিয়মিত সিগন্যাল দিতে পারবে। প্রতি ১০ মিনিট পর পর চেক করা হবে।")
     
     while True:
-        print("Scraping for signal...")
+        print("Checking for signal...")
         signal = get_signal()
         
         if signal:
             bot.send_message(USER_CHAT_ID, signal)
-            print("Message delivered.")
-        else:
-            # যদি সিগন্যাল না আসে তবে আপনাকে জানাবে কেন আসছে না
-            bot.send_message(USER_CHAT_ID, "🔍 মার্কেট স্ক্যান করা হয়েছে কিন্তু এআই থেকে ডাটা পাওয়া যায়নি। ১০ মিনিট পর আবার চেষ্টা হবে।")
-
-        # ১০ মিনিট বিরতি (৬০০ সেকেন্ড)
-        time.sleep(600)
+            print("Signal Sent.")
+        
+        time.sleep(600) # ১০ মিনিট
 
 if __name__ == "__main__":
-    # ওয়েব সার্ভার আলাদা থ্রেডে
     threading.Thread(target=run_web_server).start()
-    
-    # অটোমেশন আলাদা থ্রেডে
     threading.Thread(target=auto_loop).start()
     
-    # মেইন বডি হিসেবে পোলিং
     while True:
         try:
             bot.polling(none_stop=True, interval=3, timeout=20)
         except Exception as e:
-            print(f"Polling error: {e}")
-            time.sleep(5)
+            time.sleep(10)
