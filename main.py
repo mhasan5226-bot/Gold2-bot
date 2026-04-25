@@ -4,7 +4,7 @@ import threading
 import time
 from flask import Flask
 
-# --- নতুন কনফিগারেশন ---
+# --- কনফিগারেশন ---
 TELEGRAM_TOKEN = "8683108194:AAFevIXVBrWPKvWQAs2KAjIh9ZTWa3O2M2Q"
 GROQ_API_KEY = "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"
 USER_CHAT_ID = "8305902471"
@@ -14,85 +14,61 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Nexus Alpha Stable Mode Active!"
+    return "Nexus Alpha is Alive!"
 
 def run_web_server():
-    # Render এর জন্য পোর্ট ৮MD০৮০ ফিক্সড রাখা হয়েছে
     app.run(host='0.0.0.0', port=8080)
 
 def get_signal():
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     
-    # ইনজেকশন করা প্রম্পট যা সরাসরি সিগন্যাল দিতে বাধ্য করবে
-    prompt = """
-    Act as a professional Gold (XAUUSD) technical analyst. 
-    Analyze market trends and provide a clear BUY/SELL signal in BENGALI.
-    
-    Format:
-    🔱 **NEXUS MASTER SNIPER** 🔱
-    ━━━━━━━━━━━━━━━━━━
-    📈 Action: [BUY or SELL]
-    📍 Entry: [Current Market Price]
-    🎯 TP: [Target Profit]
-    🛡️ SL: [Stop Loss]
-    
-    📊 Analysis: [2-line technical reason in Bengali]
-    ━━━━━━━━━━━━━━━━━━
-    """
-    
+    prompt = "Provide a Gold (XAUUSD) BUY/SELL signal in BENGALI with Entry, TP, SL and analysis."
     data = {
         "model": "llama3-8b-8192",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.6
+        "temperature": 0.5
     }
     
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=30)
-        res_json = response.json()
-        if 'choices' in res_json:
-            return res_json['choices'][0]['message']['content']
-        return None
+        # আমরা Timeout বাড়িয়ে ৩০ সেকেন্ড করলাম যাতে AI ভাবার সময় পায়
+        r = requests.post(url, headers=headers, json=data, timeout=30)
+        res = r.json()
+        if 'choices' in res:
+            return res['choices'][0]['message']['content']
+        return "⚠️ AI Response Error: " + str(res.get('error', {}).get('message', 'Unknown'))
     except Exception as e:
-        print(f"AI Fetch Error: {e}")
-        return None
+        return f"⚠️ Connection Error: {str(e)}"
 
 def auto_loop():
-    # নতুন বটের প্রথম মেসেজ
-    try:
-        bot.send_message(USER_CHAT_ID, "🚀 **New Bot Connected Successfully!**\nআপনার নতুন বটটি এখন Render ক্লাউড থেকে সরাসরি নিয়ন্ত্রিত। প্রতি ১০ মিনিট পর পর অটোমেটিক সিগন্যাল আসবে।")
-    except Exception as e:
-        print(f"Welcome Message Error: {e}")
-
+    # প্রথম স্টার্ট মেসেজ
+    bot.send_message(USER_CHAT_ID, "🛠️ **System Hard-Reset Done!**\nঅটোমেশন ইঞ্জিন এখন প্রতি ১০ মিনিট পর পর জোরপূর্বক সিগন্যাল জেনারেট করবে।")
+    
     while True:
-        print("Checking Market...")
+        print("Scraping for signal...")
         signal = get_signal()
         
         if signal:
-            try:
-                bot.send_message(USER_CHAT_ID, signal)
-                print("Signal Sent!")
-            except Exception as e:
-                print(f"Telegram Delivery Error: {e}")
-        
+            bot.send_message(USER_CHAT_ID, signal)
+            print("Message delivered.")
+        else:
+            # যদি সিগন্যাল না আসে তবে আপনাকে জানাবে কেন আসছে না
+            bot.send_message(USER_CHAT_ID, "🔍 মার্কেট স্ক্যান করা হয়েছে কিন্তু এআই থেকে ডাটা পাওয়া যায়নি। ১০ মিনিট পর আবার চেষ্টা হবে।")
+
         # ১০ মিনিট বিরতি (৬০০ সেকেন্ড)
         time.sleep(600)
 
 if __name__ == "__main__":
-    # ওয়েব সার্ভার ব্যাকগ্রাউন্ডে রাখা
-    threading.Thread(target=run_web_server, daemon=True).start()
+    # ওয়েব সার্ভার আলাদা থ্রেডে
+    threading.Thread(target=run_web_server).start()
     
-    # অটোমেশন লুপ ব্যাকগ্রাউন্ডে রাখা
-    threading.Thread(target=auto_loop, daemon=True).start()
+    # অটোমেশন আলাদা থ্রেডে
+    threading.Thread(target=auto_loop).start()
     
-    # বট পোলিং (এরর হ্যান্ডলিং সহ)
+    # মেইন বডি হিসেবে পোলিং
     while True:
         try:
-            print("Bot Polling Started...")
-            bot.polling(none_stop=True, timeout=60)
+            bot.polling(none_stop=True, interval=3, timeout=20)
         except Exception as e:
-            print(f"Polling Restarting due to: {e}")
-            time.sleep(10)
+            print(f"Polling error: {e}")
+            time.sleep(5)
